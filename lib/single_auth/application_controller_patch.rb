@@ -45,22 +45,18 @@ module SingleAuth
         if auth_source && auth_source.onthefly_register?
           filter = Net::LDAP::Filter.eq(auth_source.attr_login, remote_username)
           ldap_connection = get_ldap_conn
-          ldap_connection.search(:base => auth_source.base_dn, :filter => filter) do |entry|
-            if AuthSourceLdap.respond_to?(:make_user_from_entry)
-              # if ldap_users_sync method present - do it like a sync
-              new_user = AuthSourceLdap.make_user_from_entry(auth_source, ldap_connection, entry)
-            else
-              new_user = User.create( { :login => remote_username,
-                                        :firstname => entry[auth_source.attr_firstname].first.to_s,
-                                        :lastname => entry[auth_source.attr_lastname].first.to_s,
-                                        :mail => entry[auth_source.attr_mail].first.to_s,
-                                        :language => Setting.default_language,
-                                        :mail_notification => Setting.default_notification_option,
-                                        :auth_source_id => auth_source.id } )
-            end
-          end
         end
-        (new_user && new_user.new_record?) ? nil : new_user
+          conn = PG::Connection.open(:dbname => 'colab', :host => '10.18.0.10', :user => 'colab', :password => 'colab')
+                   res = conn.exec("select email, first_name, last_name from accounts_user where username='#{remote_username}';")
+                   new_user = User.create( { :login => remote_username,
+                                           :firstname => res[0]['first_name'],
+                                           :lastname => res[0]['last_name'],
+                                           :mail => res[0]['email'],
+                                           :language => Setting.default_language,
+                                           :mail_notification => Setting.default_notification_option,
+                                           :auth_source_id => auth_source.id } )
+          new_user.login = remote_username
+          new_user
       end
 
 
